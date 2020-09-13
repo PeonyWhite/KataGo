@@ -2,7 +2,7 @@
 #define SEARCH_SEARCH_H_
 
 #include <memory>
-
+#include <vector>
 #include "../core/global.h"
 #include "../core/hash.h"
 #include "../core/logger.h"
@@ -33,7 +33,9 @@ struct ReportedSearchValues {
   double lead;
   double winLossValue;
   double utility;
-
+  std::vector<double> allScores;
+  std::vector<double> allScoreWeights;
+  std::vector<double> allLeads;
   ReportedSearchValues();
   ~ReportedSearchValues();
 };
@@ -49,6 +51,9 @@ struct NodeStats {
   double utilitySqSum;
   double weightSum;
   double weightSqSum;
+  std::vector<double> allScores;
+  std::vector<double> allScoreWeights;
+  std::vector<double> allLeads;
 
   NodeStats();
   ~NodeStats();
@@ -397,7 +402,14 @@ private:
     bool isRoot
   ) const;
 
-  void addLeafValue(SearchNode& node, double winValue, double noResultValue, double scoreMean, double scoreMeanSq, double lead, int32_t virtualLossesToSubtract);
+  void addLeafValue(
+    SearchNode& node,
+    double winValue,
+    double noResultValue,
+    double scoreMean,
+    double scoreMeanSq,
+    double lead,
+    int32_t virtualLossesToSubtract);
   void addCurentNNOutputAsLeafValue(SearchNode& node, int32_t virtualLossesToSubtract);
 
   void maybeRecomputeExistingNNOutput(

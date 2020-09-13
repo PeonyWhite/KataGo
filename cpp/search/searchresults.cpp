@@ -373,7 +373,9 @@ bool Search::getNodeValues(const SearchNode& node, ReportedSearchValues& values)
   double leadSum = node.stats.leadSum;
   double weightSum = node.stats.weightSum;
   double utilitySum = node.stats.utilitySum;
-
+  values.allScores = node.stats.allScores;
+  values.allScoreWeights = node.stats.allScoreWeights;
+  values.allLeads = node.stats.allLeads;
   node.statsLock.clear(std::memory_order_release);
 
   assert(weightSum > 0.0);

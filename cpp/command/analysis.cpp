@@ -297,10 +297,11 @@ int MainCmds::analysis(int argc, const char* const* argv) {
         double scoreMean = rootVals.expectedScore;
         double lead = rootVals.lead;
         double utility = rootVals.utility;
-
+        int scoreMult = 1;
         if(perspective == P_BLACK || (perspective != P_BLACK && perspective != P_WHITE && rootPla == P_BLACK)) {
           winrate = 1.0-winrate;
           scoreMean = -scoreMean;
+          scoreMult = -1;
           lead = -lead;
           utility = -utility;
         }
@@ -312,6 +313,22 @@ int MainCmds::analysis(int argc, const char* const* argv) {
         rootInfo["scoreLead"] = lead;
         rootInfo["scoreStdev"] = rootVals.expectedScoreStdev;
         rootInfo["utility"] = utility;
+        json allScores = json::array();
+        for(int q = 0; q < rootVals.allScores.size(); q++) {
+          allScores.push_back(rootVals.allScores[q] * scoreMult);
+        }
+        json allLeads = json::array();
+        for(int q = 0; q < rootVals.allLeads.size(); q++) {
+          allLeads.push_back(rootVals.allLeads[q] * scoreMult);
+        }
+        json allScoreWeights = json::array();
+        for(int q = 0; q < rootVals.allScoreWeights.size(); q++) {
+          allScoreWeights.push_back(rootVals.allScoreWeights[q]);
+        }
+        rootInfo["allScores"] = allScores;
+        rootInfo["allLeads"] = allLeads;
+        rootInfo["allScoreWeights"] = allScoreWeights;
+
         ret["rootInfo"] = rootInfo;
       }
 

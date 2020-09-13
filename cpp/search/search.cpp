@@ -1682,6 +1682,8 @@ void Search::recomputeNodeStats(SearchNode& node, SearchThread& thread, int numV
   vector<double>& weightSums = thread.weightBuf;
   vector<double>& weightSqSums = thread.weightSqBuf;
   vector<int64_t>& visits = thread.visitsBuf;
+  vector<double> allScores, allWeights, allLeads, tmpChildScores, tmpWeights, tmpLeads;
+  vector<vector<double> > childScores, childScoreWeights, childLeads;
 
   int64_t totalChildVisits = 0;
   int64_t maxChildVisits = 0;
@@ -1705,6 +1707,9 @@ void Search::recomputeNodeStats(SearchNode& node, SearchThread& thread, int numV
     double weightSqSum = child->stats.weightSqSum;
     double utilitySum = child->stats.utilitySum;
     double utilitySqSum = child->stats.utilitySqSum;
+    tmpChildScores = child->stats.allScores;
+    tmpWeights = child->stats.allScoreWeights;
+    tmpLeads = child->stats.allLeads;
     child->statsLock.clear(std::memory_order_release);
 
     if(childVisits <= 0)
@@ -1724,6 +1729,9 @@ void Search::recomputeNodeStats(SearchNode& node, SearchThread& thread, int numV
     weightSums[numGoodChildren] = weightSum;
     weightSqSums[numGoodChildren] = weightSqSum;
     visits[numGoodChildren] = childVisits;
+    childScores.push_back(tmpChildScores);
+    childScoreWeights.push_back(tmpWeights);
+    childLeads.push_back(tmpLeads);
     totalChildVisits += childVisits;
 
     if(childVisits > maxChildVisits)
@@ -1759,6 +1767,7 @@ void Search::recomputeNodeStats(SearchNode& node, SearchThread& thread, int numV
   double utilitySqSum = 0.0;
   double weightSum = 0.0;
   double weightSqSum = 0.0;
+  
   for(int i = 0; i<numGoodChildren; i++) {
     if(visits[i] < amountToPrune)
       continue;
@@ -1780,6 +1789,12 @@ void Search::recomputeNodeStats(SearchNode& node, SearchThread& thread, int numV
     utilitySqSum += weightScaling * utilitySqSums[i];
     weightSum += desiredWeight;
     weightSqSum += weightScaling * weightScaling * weightSqSums[i];
+    allScores.insert(allScores.end(), childScores[i].begin(), childScores[i].end());
+    allLeads.insert(allLeads.end(), childLeads[i].begin(), childLeads[i].end());
+    for(int q = 0; q < childScoreWeights[i].size(); q++) {
+      childScoreWeights[i][q] *= desiredWeight;
+    }
+    allWeights.insert(allWeights.end(), childScoreWeights[i].begin(), childScoreWeights[i].end());
   }
 
   //Also add in the direct evaluation of this node.
@@ -1809,6 +1824,9 @@ void Search::recomputeNodeStats(SearchNode& node, SearchThread& thread, int numV
     utilitySqSum += utility * utility * desiredWeight;
     weightSum += desiredWeight;
     weightSqSum += desiredWeight * desiredWeight;
+    allScores.push_back(scoreMean);
+    allLeads.push_back(lead);
+    allWeights.push_back(desiredWeight);
   }
 
   while(node.statsLock.test_and_set(std::memory_order_acquire));
@@ -1826,6 +1844,9 @@ void Search::recomputeNodeStats(SearchNode& node, SearchThread& thread, int numV
   node.stats.utilitySqSum = utilitySqSum;
   node.stats.weightSum = weightSum;
   node.stats.weightSqSum = weightSqSum;
+  node.stats.allScores = allScores;
+  node.stats.allScoreWeights = allWeights;
+  node.stats.allLeads = allLeads;
   node.virtualLosses -= virtualLossesToSubtract;
   node.statsLock.clear(std::memory_order_release);
 }
@@ -1840,7 +1861,14 @@ void Search::runSinglePlayout(SearchThread& thread) {
   thread.history = rootHistory;
 }
 
-void Search::addLeafValue(SearchNode& node, double winValue, double noResultValue, double scoreMean, double scoreMeanSq, double lead, int32_t virtualLossesToSubtract) {
+void Search::addLeafValue(
+  SearchNode& node,
+  double winValue,
+  double noResultValue,
+  double scoreMean,
+  double scoreMeanSq,
+  double lead,
+  int32_t virtualLossesToSubtract) {
   double utility =
     getResultUtility(winValue, noResultValue)
     + getScoreUtility(scoreMean, scoreMeanSq, 1.0);
@@ -1856,6 +1884,9 @@ void Search::addLeafValue(SearchNode& node, double winValue, double noResultValu
   node.stats.utilitySqSum += utility * utility;
   node.stats.weightSum += 1.0;
   node.stats.weightSqSum += 1.0;
+  node.stats.allScores.push_back(scoreMean);
+  node.stats.allLeads.push_back(lead);
+  node.stats.allScoreWeights.push_back(1.0);
   node.virtualLosses -= virtualLossesToSubtract;
   node.statsLock.clear(std::memory_order_release);
 }
