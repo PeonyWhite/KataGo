@@ -1843,7 +1843,6 @@ void Search::recomputeNodeStats(SearchNode& node, SearchThread& thread, int numV
   }
 
   //Also add in the direct evaluation of this node.
-  double thisNodeEvalDesiredWeight;
   {
     //Since we've scaled all the child weights in some arbitrary way, adjust and make sure
     //that the direct evaluation of the node still has precisely 1/N weight.
@@ -1870,50 +1869,33 @@ void Search::recomputeNodeStats(SearchNode& node, SearchThread& thread, int numV
     utilitySqSum += utility * utility * desiredWeight;
     weightSum += desiredWeight;
     weightSqSum += desiredWeight * desiredWeight;
-
-    thisNodeEvalDesiredWeight = desiredWeight;
   }
 
-  if(searchParams.simpleMovesBias > 0 && rootNode != NULL && (&node) != rootNode) {
-    double rootPlaUtilityDelta = 0;
-
-    if(node.nextPla == getOpp(rootPla)) {
-      //Root player takes a penalty when playing moves with low policy
-      rootPlaUtilityDelta = 0.04 * searchParams.simpleMovesBias * (1.0 + log(1e-30 + node.prevPolicyProb));
-      //Root player takes a small penalty for tenuki
-      assert(node.parent != NULL);
-      if(node.parent->prevMoveLoc != Board::NULL_LOC && node.parent->prevMoveLoc != Board::PASS_LOC && node.prevMoveLoc != Board::PASS_LOC)
-        rootPlaUtilityDelta -= 0.002 * searchParams.simpleMovesBias *
-          std::max(0.0, -5.0 + sqrt(Location::euclideanDistanceSquared(node.parent->prevMoveLoc, node.prevMoveLoc,rootBoard.x_size)));
-    }
-
-    //Move-related penalties fade the later you go in the search
-    rootPlaUtilityDelta /= sqrt(node.turnNumber - rootNode->turnNumber);
-
+  // add utility delta for simple moves for root player
+  if(searchParams.simpleMovesBias > 0 && rootNode != NULL && node.turnNumber == rootNode->turnNumber + 1) {
+    double rootPlaUtilityDeltaTenuki = 0;
+    //Root player takes a small penalty for tenuki
+    assert(node.parent != NULL);
+    if(node.parent->prevMoveLoc != Board::NULL_LOC && node.parent->prevMoveLoc != Board::PASS_LOC && node.prevMoveLoc != Board::PASS_LOC)
+        rootPlaUtilityDeltaTenuki = -0.005 * std::max(0.0, -5.0 + sqrt(Location::euclideanDistanceSquared(node.parent->prevMoveLoc, node.prevMoveLoc,rootBoard.x_size)));
     //Root player takes a penalty when they lose things that they probably owned, and takes a bonus when they secure things
     //that they probably own.
-    {
-      const float* rootWhiteOwnerMap = rootNode->nnOutput->whiteOwnerMap;
-      const float* currentWhiteOwnerMap = node.nnOutput->whiteOwnerMap;
-      double securityGainedSum = 0.0;
-      for(int y = 0; y<rootBoard.y_size; y++) {
-        for(int x = 0; x<rootBoard.x_size; x++) {
-          int pos = NNPos::xyToPos(x,y,nnXLen);
-          double oldOwnership01 = (rootPla == P_WHITE ? rootWhiteOwnerMap[pos] : -rootWhiteOwnerMap[pos]) * 0.5 + 1.0;
-          double newOwnership01 = (rootPla == P_WHITE ? currentWhiteOwnerMap[pos] : -currentWhiteOwnerMap[pos]) * 0.5 + 1.0;
-          securityGainedSum += oldOwnership01 * (newOwnership01 - oldOwnership01);
-        }
+    const float* rootWhiteOwnerMap = rootNode->nnOutput->whiteOwnerMap;
+    const float* currentWhiteOwnerMap = node.nnOutput->whiteOwnerMap;
+    double securityGainedSum = 0.0;
+    for(int y = 0; y<rootBoard.y_size; y++) {
+      for(int x = 0; x<rootBoard.x_size; x++) {
+        int pos = NNPos::xyToPos(x,y,nnXLen);
+        double oldOwnership01 = (rootPla == P_WHITE ? rootWhiteOwnerMap[pos] : -rootWhiteOwnerMap[pos]) * 0.5 + 1.0;
+        double newOwnership01 = (rootPla == P_WHITE ? currentWhiteOwnerMap[pos] : -currentWhiteOwnerMap[pos]) * 0.5 + 1.0;
+        securityGainedSum += oldOwnership01 * oldOwnership01 * (newOwnership01 - oldOwnership01);
       }
-      double utilityDeltaThisNodeEval = 0.40 * searchParams.simpleMovesBias * securityGainedSum / sqrt(rootBoard.x_size * rootBoard.y_size);
-      rootPlaUtilityDelta += utilityDeltaThisNodeEval * thisNodeEvalDesiredWeight;
     }
-
-
+    double rootPlaUtilityDeltaOwnership = 0.40 * securityGainedSum / sqrt(rootBoard.x_size * rootBoard.y_size);
+    double rootPlaUtilityDelta = searchParams.simpleMovesBias * (rootPlaUtilityDeltaTenuki + rootPlaUtilityDeltaOwnership); 
     double utilityDelta = rootPla == P_WHITE ? rootPlaUtilityDelta : -rootPlaUtilityDelta;
-    double oldUtility = utilitySum / weightSum;
-    double newUtility = oldUtility + utilityDelta;
-    utilitySqSum = weightSum * (newUtility * newUtility + std::max(utilitySqSum / weightSum  - oldUtility * oldUtility, 0.0));
-    utilitySum = newUtility * weightSum;
+    cerr << Location::toString(node.prevMoveLoc,19,19) << " tenuki " << rootPlaUtilityDeltaTenuki  << ", ownership " << rootPlaUtilityDeltaOwnership << " -> signed utility delta = " << utilityDelta << " added to "<< utilitySum << " -> " << utilitySum + utilityDelta << endl << flush;
+    utilitySum += utilityDelta; // flat bonus
   }
 
   while(node.statsLock.test_and_set(std::memory_order_acquire));

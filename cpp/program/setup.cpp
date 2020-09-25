@@ -533,7 +533,7 @@ vector<SearchParams> Setup::loadParams(
     if(cfg.contains("simpleMovesBias"+idxStr))
       params.simpleMovesBias = cfg.getDouble("simpleMovesBias"+idxStr,0.0,2.0);
     else if(cfg.contains("simpleMovesBias"))
-      params.simpleMovesBias = cfg.getDouble("simpleMovesBias",0.0,2.0);
+      params.simpleMovesBias = cfg.getDouble("simpleMovesBias",0.0,1000000.0);
     else
       params.simpleMovesBias = 0.0;
 
