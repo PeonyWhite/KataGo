@@ -1894,7 +1894,7 @@ void Search::recomputeNodeStats(SearchNode& node, SearchThread& thread, int numV
     double rootPlaUtilityDeltaOwnership = 0.40 * securityGainedSum / sqrt(rootBoard.x_size * rootBoard.y_size);
     double rootPlaUtilityDelta = searchParams.simpleMovesBias * (rootPlaUtilityDeltaTenuki + rootPlaUtilityDeltaOwnership); 
     double utilityDelta = rootPla == P_WHITE ? rootPlaUtilityDelta : -rootPlaUtilityDelta;
-    cerr << Location::toString(node.prevMoveLoc,19,19) << " tenuki " << rootPlaUtilityDeltaTenuki  << ", ownership " << rootPlaUtilityDeltaOwnership << " -> signed utility delta = " << utilityDelta << " added to "<< utilitySum << " -> " << utilitySum + utilityDelta << endl << flush;
+//    cerr << Location::toString(node.prevMoveLoc,19,19) << " tenuki " << rootPlaUtilityDeltaTenuki  << ", ownership " << rootPlaUtilityDeltaOwnership << " -> signed utility delta = " << utilityDelta << " added to "<< utilitySum << " -> " << utilitySum + utilityDelta << endl << flush;
     utilitySum += utilityDelta; // flat bonus
   }
 
